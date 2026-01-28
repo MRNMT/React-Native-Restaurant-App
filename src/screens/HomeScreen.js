@@ -1,21 +1,48 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, FlatList, StyleSheet } from 'react-native';
 import { Text, Button, Header, Icon } from 'react-native-elements';
 import { useDispatch, useSelector } from 'react-redux';
 import { logoutUser } from '../redux/authSlice';
-import { CATEGORIES, FOOD_ITEMS } from '../data/mockData';
+import { CATEGORIES } from '../data/mockData';
 import ProductCard from '../components/ProductCard';
 import { useTheme } from '../contexts/ThemeContext';
+import { FirestoreService } from '../services/FirestoreService';
 
 const HomeScreen = ({ navigation }) => {
     const [selectedCategory, setSelectedCategory] = useState('All');
+    const [foodItems, setFoodItems] = useState([]);
+    const [loading, setLoading] = useState(true);
     const dispatch = useDispatch();
     const user = useSelector(state => state.auth.user);
     const { theme, toggleTheme, isDarkMode } = useTheme();
 
+    useEffect(() => {
+        loadFoodItems();
+    }, []);
+
+    const loadFoodItems = async () => {
+        try {
+            const items = await FirestoreService.getFoodItems();
+            setFoodItems(items);
+        } catch (error) {
+            console.error('Error loading food items:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Extract unique categories from food items and combine with default categories
+    const allCategories = [
+        { id: 'all', name: 'All' },
+        ...CATEGORIES.slice(1), // Remove 'All' from mock data to avoid duplicates
+        ...Array.from(new Set(foodItems.map(item => item.category)))
+            .filter(category => category && !CATEGORIES.some(cat => cat.name === category))
+            .map((category, index) => ({ id: `custom-${index}`, name: category }))
+    ];
+
     const filteredItems = selectedCategory === 'All'
-        ? FOOD_ITEMS
-        : FOOD_ITEMS.filter(item => item.category === selectedCategory);
+        ? foodItems
+        : foodItems.filter(item => item.category === selectedCategory);
 
     const handleLogout = () => {
         dispatch(logoutUser());
@@ -97,7 +124,7 @@ const HomeScreen = ({ navigation }) => {
 
             <View style={dynamicStyles.categoriesContainer}>
                 <FlatList
-                    data={CATEGORIES}
+                    data={allCategories}
                     renderItem={renderCategoryItem}
                     keyExtractor={item => item.id}
                     horizontal

@@ -15,6 +15,7 @@ import CartScreen from '../screens/CartScreen';
 import CheckoutScreen from '../screens/CheckoutScreen';
 import AdminLoginScreen from '../screens/AdminLoginScreen';
 import AdminScreen from '../screens/AdminScreen';
+import WebAdminScreen from '../screens/WebAdminScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 
 const Stack = createStackNavigator();

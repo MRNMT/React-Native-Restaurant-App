@@ -17,6 +17,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { LineChart, BarChart, PieChart } from 'react-native-chart-kit';
 import { useTheme } from '../contexts/ThemeContext';
 import { AuthService } from '../services/AuthService';
+import { FirestoreService } from '../services/FirestoreService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const screenWidth = Dimensions.get('window').width;
@@ -82,26 +83,22 @@ const AdminScreen = ({ navigation }) => {
 
     const loadAllData = async () => {
         try {
-            const usersJson = await AsyncStorage.getItem('USERS');
-            const loadedUsers = usersJson ? JSON.parse(usersJson) : [];
+            const loadedUsers = await FirestoreService.getUsers();
             setUsers(loadedUsers);
-            
-            const foodJson = await AsyncStorage.getItem('FOOD_ITEMS');
-            const loadedFoods = foodJson ? JSON.parse(foodJson) : [];
+
+            const loadedFoods = await FirestoreService.getFoodItems();
             setFoodItems(loadedFoods);
-            
-            const restaurantsJson = await AsyncStorage.getItem('RESTAURANTS');
-            const loadedRestaurants = restaurantsJson ? JSON.parse(restaurantsJson) : [];
+
+            const loadedRestaurants = await FirestoreService.getRestaurants();
             setRestaurants(loadedRestaurants);
-            
-            const ordersJson = await AsyncStorage.getItem('ORDERS');
-            const loadedOrders = ordersJson ? JSON.parse(ordersJson) : [];
+
+            const loadedOrders = await FirestoreService.getOrders();
             setOrders(loadedOrders);
-            
+
             calculateStatistics(loadedOrders, loadedUsers);
             calculateRevenueTrends(loadedOrders);
             calculateCategoryDistribution(loadedOrders, loadedFoods);
-            
+
         } catch (error) {
             console.error('Error loading data:', error);
         }
@@ -194,9 +191,8 @@ const AdminScreen = ({ navigation }) => {
                     Alert.alert('Error', 'Please fill in all required fields');
                     return;
                 }
-                
+
                 const newFood = {
-                    id: Date.now().toString(),
                     name: formData.name,
                     description: formData.description,
                     price: parseFloat(formData.price),
@@ -207,20 +203,17 @@ const AdminScreen = ({ navigation }) => {
                     available: true,
                     createdAt: new Date().toISOString()
                 };
-                
-                const updated = [...foodItems, newFood];
-                setFoodItems(updated);
-                await AsyncStorage.setItem('FOOD_ITEMS', JSON.stringify(updated));
+
+                await FirestoreService.addFoodItem(newFood);
                 Alert.alert('Success', 'Food item added successfully');
-                
+
             } else if (modalType === 'restaurant') {
                 if (!formData.name) {
                     Alert.alert('Error', 'Please enter restaurant name');
                     return;
                 }
-                
+
                 const newRestaurant = {
-                    id: Date.now().toString(),
                     name: formData.name,
                     address: formData.address || 'No address provided',
                     rating: parseFloat(formData.rating) || 4.0,
@@ -230,10 +223,8 @@ const AdminScreen = ({ navigation }) => {
                     isOpen: true,
                     createdAt: new Date().toISOString()
                 };
-                
-                const updated = [...restaurants, newRestaurant];
-                setRestaurants(updated);
-                await AsyncStorage.setItem('RESTAURANTS', JSON.stringify(updated));
+
+                await FirestoreService.addRestaurant(newRestaurant);
                 Alert.alert('Success', 'Restaurant added successfully');
             }
             resetForm();
@@ -247,35 +238,27 @@ const AdminScreen = ({ navigation }) => {
     const handleUpdateItem = async () => {
         try {
             if (modalType === 'food') {
-                const updated = foodItems.map(item => 
-                    item.id === editingItem.id ? {
-                        ...item,
-                        name: formData.name,
-                        description: formData.description,
-                        price: parseFloat(formData.price),
-                        category: formData.category,
-                        image: formData.image || item.image,
-                        restaurantId: formData.restaurantId,
-                        updatedAt: new Date().toISOString()
-                    } : item
-                );
-                setFoodItems(updated);
-                await AsyncStorage.setItem('FOOD_ITEMS', JSON.stringify(updated));
+                const updates = {
+                    name: formData.name,
+                    description: formData.description,
+                    price: parseFloat(formData.price),
+                    category: formData.category,
+                    image: formData.image || editingItem.image,
+                    restaurantId: formData.restaurantId,
+                    updatedAt: new Date().toISOString()
+                };
+                await FirestoreService.updateFoodItem(editingItem.id, updates);
                 Alert.alert('Success', 'Food item updated successfully');
-                
+
             } else if (modalType === 'restaurant') {
-                const updated = restaurants.map(item => 
-                    item.id === editingItem.id ? {
-                        ...item,
-                        name: formData.name,
-                        address: formData.address,
-                        deliveryTime: formData.deliveryTime,
-                        image: formData.image || item.image,
-                        updatedAt: new Date().toISOString()
-                    } : item
-                );
-                setRestaurants(updated);
-                await AsyncStorage.setItem('RESTAURANTS', JSON.stringify(updated));
+                const updates = {
+                    name: formData.name,
+                    address: formData.address,
+                    deliveryTime: formData.deliveryTime,
+                    image: formData.image || editingItem.image,
+                    updatedAt: new Date().toISOString()
+                };
+                await FirestoreService.updateRestaurant(editingItem.id, updates);
                 Alert.alert('Success', 'Restaurant updated successfully');
             }
             resetForm();
@@ -298,13 +281,9 @@ const AdminScreen = ({ navigation }) => {
                     onPress: async () => {
                         try {
                             if (type === 'food') {
-                                const updated = foodItems.filter(item => item.id !== id);
-                                setFoodItems(updated);
-                                await AsyncStorage.setItem('FOOD_ITEMS', JSON.stringify(updated));
+                                await FirestoreService.deleteFoodItem(id);
                             } else if (type === 'restaurant') {
-                                const updated = restaurants.filter(item => item.id !== id);
-                                setRestaurants(updated);
-                                await AsyncStorage.setItem('RESTAURANTS', JSON.stringify(updated));
+                                await FirestoreService.deleteRestaurant(id);
                             }
                             Alert.alert('Success', 'Item deleted successfully');
                             await loadAllData();
@@ -320,15 +299,10 @@ const AdminScreen = ({ navigation }) => {
 
     const handleUpdateOrderStatus = async (orderId, newStatus) => {
         try {
-            const updated = orders.map(order => 
-                order.id === orderId ? {
-                    ...order,
-                    status: newStatus,
-                    updatedAt: new Date().toISOString()
-                } : order
-            );
-            setOrders(updated);
-            await AsyncStorage.setItem('ORDERS', JSON.stringify(updated));
+            await FirestoreService.updateOrder(orderId, {
+                status: newStatus,
+                updatedAt: new Date().toISOString()
+            });
             Alert.alert('Success', 'Order status updated');
             await loadAllData();
         } catch (error) {
@@ -744,7 +718,7 @@ const AdminScreen = ({ navigation }) => {
                                             style={[styles.statusButton, { backgroundColor: '#95E1D3' }]}
                                             onPress={() => handleUpdateOrderStatus(order.id, 'delivered')}
                                         >
-                                            <Text style={styles.statusButtonText}>Delivered</Text>
+                                        <Text style={styles.statusButtonText}>Delivered</Text>
                                         </TouchableOpacity>
                                         <TouchableOpacity
                                             style={[styles.statusButton, { backgroundColor: '#FF6B6B' }]}
@@ -944,11 +918,11 @@ const AdminScreen = ({ navigation }) => {
                                         keyboardType="numeric"
                                     />
                                     <TextInput
-                                        style={[styles.input, { 
+                                        style={[styles.input, {
                                             backgroundColor: theme.colors.background,
-                                            color: theme.colors.textPrimary 
+                                            color: theme.colors.textPrimary
                                         }]}
-                                        placeholder="Category * (e.g., Fast Food, Italian)"
+                                        placeholder="Category * (e.g., Fast Food, Italian, or create your own)"
                                         placeholderTextColor={theme.colors.textSecondary}
                                         value={formData.category}
                                         onChangeText={(text) => setFormData({ ...formData, category: text })}

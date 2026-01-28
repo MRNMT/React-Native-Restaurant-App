@@ -1,9 +1,22 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { auth, db } from './FirebaseConfig';
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged
+} from 'firebase/auth';
+import {
+  doc,
+  setDoc,
+  getDoc,
+  updateDoc,
+  collection,
+  query,
+  where,
+  getDocs
+} from 'firebase/firestore';
 
-const USERS_KEY = 'USERS';
-const CURRENT_USER_KEY = 'CURRENT_USER';
-
-// Simulate delay
+// Simulate delay for better UX
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export const AuthService = {
@@ -15,22 +28,47 @@ export const AuthService = {
         throw new Error('Admin account cannot be registered. Please contact support.');
       }
 
-      const usersJson = await AsyncStorage.getItem(USERS_KEY);
-      const users = usersJson ? JSON.parse(usersJson) : [];
+      // Check if user already exists in Firestore
+      const usersRef = collection(db, 'users');
+      const q = query(usersRef, where('email', '==', userData.email));
+      const querySnapshot = await getDocs(q);
 
-      const existingUser = users.find((u) => u.email === userData.email);
-      if (existingUser) {
+      if (!querySnapshot.empty) {
         throw new Error('User already exists');
       }
 
-      const newUser = { ...userData, id: Date.now().toString() };
-      users.push(newUser);
+      // Create user with Firebase Auth
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        userData.email,
+        userData.password
+      );
 
-      await AsyncStorage.setItem(USERS_KEY, JSON.stringify(users));
-      await AsyncStorage.setItem(CURRENT_USER_KEY, JSON.stringify(newUser));
+      // Save user data to Firestore
+      const newUser = {
+        uid: userCredential.user.uid,
+        name: userData.name,
+        surname: userData.surname,
+        email: userData.email,
+        contact: userData.contact,
+        address: userData.address,
+        cardNumber: userData.cardNumber || '',
+        role: 'user',
+        createdAt: new Date().toISOString()
+      };
+
+      await setDoc(doc(db, 'users', userCredential.user.uid), newUser);
 
       return newUser;
     } catch (error) {
+      // Handle Firebase errors
+      if (error.code === 'auth/email-already-in-use') {
+        throw new Error('User already exists');
+      } else if (error.code === 'auth/weak-password') {
+        throw new Error('Password should be at least 6 characters');
+      } else if (error.code === 'auth/invalid-email') {
+        throw new Error('Invalid email address');
+      }
       throw error;
     }
   },
@@ -41,40 +79,52 @@ export const AuthService = {
       // Special handling for admin login
       if (email.toLowerCase() === 'admin@fooddelivery.com') {
         if (password === 'admin123') {
-          const adminUser = {
-            id: 'admin',
-            email: 'admin@fooddelivery.com',
-            name: 'Admin',
-            surname: 'User',
-            role: 'admin'
-          };
-          await AsyncStorage.setItem(CURRENT_USER_KEY, JSON.stringify(adminUser));
-          return adminUser;
+          // Check if admin exists in Firestore
+          const adminDoc = await getDoc(doc(db, 'users', 'admin'));
+          if (adminDoc.exists()) {
+            return adminDoc.data();
+          } else {
+            // Create admin user if not exists
+            const adminUser = {
+              uid: 'admin',
+              email: 'admin@fooddelivery.com',
+              name: 'Admin',
+              surname: 'User',
+              role: 'admin',
+              createdAt: new Date().toISOString()
+            };
+            await setDoc(doc(db, 'users', 'admin'), adminUser);
+            return adminUser;
+          }
         } else {
           throw new Error('Invalid credentials');
         }
       }
 
-      const usersJson = await AsyncStorage.getItem(USERS_KEY);
-      const users = usersJson ? JSON.parse(usersJson) : [];
+      // Regular user login
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
 
-      const user = users.find((u) => u.email === email && u.password === password);
-
-      if (!user) {
-        throw new Error('Invalid credentials');
+      // Get user data from Firestore
+      const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
+      if (userDoc.exists()) {
+        return userDoc.data();
+      } else {
+        throw new Error('User data not found');
       }
-
-      await AsyncStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
-      return user;
     } catch (error) {
+      // Handle Firebase errors
+      if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+        throw new Error('Invalid credentials');
+      } else if (error.code === 'auth/invalid-email') {
+        throw new Error('Invalid email address');
+      }
       throw error;
     }
   },
 
   logout: async () => {
     try {
-      // Remove current user from AsyncStorage
-      await AsyncStorage.removeItem(CURRENT_USER_KEY);
+      await signOut(auth);
       console.log('User logged out successfully');
       return true;
     } catch (error) {
@@ -85,34 +135,47 @@ export const AuthService = {
 
   getCurrentUser: async () => {
     try {
-      const userJson = await AsyncStorage.getItem(CURRENT_USER_KEY);
-      return userJson ? JSON.parse(userJson) : null;
+      return new Promise((resolve) => {
+        const unsubscribe = onAuthStateChanged(auth, async (user) => {
+          unsubscribe();
+          if (user) {
+            // Get user data from Firestore
+            const userDoc = await getDoc(doc(db, 'users', user.uid));
+            if (userDoc.exists()) {
+              resolve(userDoc.data());
+            } else {
+              resolve(null);
+            }
+          } else {
+            resolve(null);
+          }
+        });
+      });
     } catch (error) {
-      console.error('AsyncStorage error:', error);
-      return null; // Return null so app can continue
+      console.error('Error getting current user:', error);
+      return null;
     }
   },
 
   updateProfile: async (updatedData) => {
     await delay(500);
-    const currentUserJson = await AsyncStorage.getItem(CURRENT_USER_KEY);
-    if (!currentUserJson) throw new Error('No user logged in');
-    
-    let currentUser = JSON.parse(currentUserJson);
-    const usersJson = await AsyncStorage.getItem(USERS_KEY);
-    let users = usersJson ? JSON.parse(usersJson) : [];
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) throw new Error('No user logged in');
 
-    // Update current user object
-    currentUser = { ...currentUser, ...updatedData };
-    
-    // Update user in the list
-    const userIndex = users.findIndex(u => u.id === currentUser.id);
-    if (userIndex !== -1) {
-      users[userIndex] = currentUser;
-      await AsyncStorage.setItem(USERS_KEY, JSON.stringify(users));
-      await AsyncStorage.setItem(CURRENT_USER_KEY, JSON.stringify(currentUser));
-      return currentUser;
+      // Update user data in Firestore
+      const userRef = doc(db, 'users', currentUser.uid);
+      await updateDoc(userRef, {
+        ...updatedData,
+        updatedAt: new Date().toISOString()
+      });
+
+      // Get updated user data
+      const updatedDoc = await getDoc(userRef);
+      return updatedDoc.data();
+    } catch (error) {
+      console.error('Update profile error:', error);
+      throw new Error('Failed to update profile');
     }
-    throw new Error('User record not found');
   }
 };
