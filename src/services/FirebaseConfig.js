@@ -8,13 +8,13 @@ import { Platform } from 'react-native';
 
 // Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyDqJxpMMSEA5zVrdeTO5pW8SMHT8LSfw6M",
-  authDomain: "fooddeliveryapp-83889.firebaseapp.com",
-  projectId: "fooddeliveryapp-83889",
-  storageBucket: "fooddeliveryapp-83889.firebasestorage.app",
-  messagingSenderId: "488477526775",
-  appId: "1:488477526775:web:e06940466ee7fa2eda21f2",
-  measurementId: "G-N2H25RN36J"
+  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
+  measurementId: process.env.EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID
 };
 
 // Initialize Firebase
