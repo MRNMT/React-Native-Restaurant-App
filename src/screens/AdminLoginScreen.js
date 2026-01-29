@@ -22,7 +22,7 @@ const AdminLoginScreen = ({ navigation }) => {
             const user = await AuthService.login(email, password);
             
             if (user.role === 'admin') {
-                navigation.replace('AdminScreen');
+                navigation.replace('WebAdmin');
             } else {
                 Alert.alert('Error', 'Access denied. Admin credentials required.');
                 await AuthService.logout();

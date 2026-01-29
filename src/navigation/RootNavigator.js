@@ -14,7 +14,6 @@ import ProductDetailsScreen from '../screens/ProductDetailsScreen';
 import CartScreen from '../screens/CartScreen';
 import CheckoutScreen from '../screens/CheckoutScreen';
 import AdminLoginScreen from '../screens/AdminLoginScreen';
-import AdminScreen from '../screens/AdminScreen';
 import WebAdminScreen from '../screens/WebAdminScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 
@@ -74,18 +73,19 @@ const RootNavigator = () => {
                     options={{ title: 'Create Account' }} 
                 />
 
-                {/* Admin Screens */}
+                {/* Admin Screens - Web Only */}
                 <Stack.Screen 
                     name="AdminLoginScreen" 
                     component={AdminLoginScreen} 
                     options={{ headerShown: false }} 
                 />
                 <Stack.Screen 
-                    name="AdminScreen" 
-                    component={AdminScreen} 
+                    name="WebAdmin" 
+                    component={WebAdminScreen} 
                     options={{ 
+                        title: 'Admin Dashboard',
                         headerShown: false,
-                        gestureEnabled: false // Prevent swipe back on admin screen
+                        gestureEnabled: false
                     }} 
                 />
 
@@ -114,11 +114,6 @@ const RootNavigator = () => {
                     name="Profile" 
                     component={ProfileScreen} 
                     options={{ title: 'Profile' }} 
-                />
-                <Stack.Screen 
-                    name="Admin" 
-                    component={AdminScreen} 
-                    options={{ title: 'Admin Dashboard' }} 
                 />
             </Stack.Navigator>
         </NavigationContainer>
