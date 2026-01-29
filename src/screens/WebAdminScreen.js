@@ -55,17 +55,27 @@ const WebAdminScreen = ({ navigation }) => {
     stock: '',
     featured: false,
   });
+  const [productSearch, setProductSearch] = useState('');
 
   // Orders state
   const [orders, setOrders] = useState([]);
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [orderSearch, setOrderSearch] = useState('');
 
   // Users state
   const [users, setUsers] = useState([]);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [userForm, setUserForm] = useState({
+    name: '',
+    email: '',
+    role: 'user',
+  });
+  const [userSearch, setUserSearch] = useState('');
 
   // Modal state
   const [showProductModal, setShowProductModal] = useState(false);
   const [showOrderModal, setShowOrderModal] = useState(false);
+  const [showUserModal, setShowUserModal] = useState(false);
 
   useEffect(() => {
     loadDashboardData();
@@ -246,6 +256,110 @@ const WebAdminScreen = ({ navigation }) => {
     }
   };
 
+  const handleSaveUser = async () => {
+    if (!userForm.name || !userForm.email) {
+      Alert.alert('Error', 'Please fill in all required fields');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      if (selectedUser) {
+        await FirestoreService.updateUser(selectedUser.id, userForm);
+        Alert.alert('Success', 'User updated successfully');
+      } else {
+        await FirestoreService.addUser(userForm);
+        Alert.alert('Success', 'User added successfully');
+      }
+
+      setShowUserModal(false);
+      resetUserForm();
+      loadUsers();
+      loadDashboardData();
+    } catch (error) {
+      console.error('Error saving user:', error);
+      Alert.alert('Error', 'Failed to save user');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteUser = async (userId) => {
+    Alert.alert(
+      'Confirm Delete',
+      'Are you sure you want to delete this user?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setLoading(true);
+            try {
+              await FirestoreService.deleteUser(userId);
+              Alert.alert('Success', 'User deleted successfully');
+              loadUsers();
+              loadDashboardData();
+            } catch (error) {
+              console.error('Error deleting user:', error);
+              Alert.alert('Error', 'Failed to delete user');
+            } finally {
+              setLoading(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const resetUserForm = () => {
+    setUserForm({
+      name: '',
+      email: '',
+      role: 'user',
+    });
+    setSelectedUser(null);
+  };
+
+  const openEditUser = (user) => {
+    setSelectedUser(user);
+    setUserForm({
+      name: user.name || '',
+      email: user.email || '',
+      role: user.role || 'user',
+    });
+    setShowUserModal(true);
+  };
+
+  // Filter functions for search
+  const getFilteredProducts = () => {
+    if (!productSearch.trim()) return products;
+    return products.filter(product => 
+      product.name?.toLowerCase().includes(productSearch.toLowerCase()) ||
+      product.category?.toLowerCase().includes(productSearch.toLowerCase()) ||
+      product.price?.toString().includes(productSearch)
+    );
+  };
+
+  const getFilteredOrders = () => {
+    if (!orderSearch.trim()) return orders;
+    return orders.filter(order => 
+      order.id?.toLowerCase().includes(orderSearch.toLowerCase()) ||
+      order.userName?.toLowerCase().includes(orderSearch.toLowerCase()) ||
+      order.status?.toLowerCase().includes(orderSearch.toLowerCase()) ||
+      order.total?.toString().includes(orderSearch)
+    );
+  };
+
+  const getFilteredUsers = () => {
+    if (!userSearch.trim()) return users;
+    return users.filter(user => 
+      user.name?.toLowerCase().includes(userSearch.toLowerCase()) ||
+      user.email?.toLowerCase().includes(userSearch.toLowerCase()) ||
+      user.role?.toLowerCase().includes(userSearch.toLowerCase())
+    );
+  };
+
   const resetProductForm = () => {
     setProductForm({
       name: '',
@@ -323,193 +437,317 @@ const WebAdminScreen = ({ navigation }) => {
     </View>
   );
 
-  const renderProducts = () => (
-    <View style={styles.contentContainer}>
-      <View style={styles.headerRow}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>
-          Product Management
-        </Text>
-        <TouchableOpacity
-          style={[styles.addButton, { backgroundColor: colors.primary }]}
-          onPress={() => {
-            resetProductForm();
-            setShowProductModal(true);
-          }}
-        >
-          <Text style={styles.addButtonText}>+ Add Product</Text>
-        </TouchableOpacity>
+  const renderProducts = () => {
+    const filteredProducts = getFilteredProducts();
+    
+    return (
+      <View style={styles.sectionContainer}>
+        <View style={styles.headerRow}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>
+            Product Management
+          </Text>
+          <TouchableOpacity
+            style={[styles.addButton, { backgroundColor: colors.primary }]}
+            onPress={() => {
+              resetProductForm();
+              setShowProductModal(true);
+            }}
+          >
+            <Text style={styles.addButtonText}>+ Add Product</Text>
+          </TouchableOpacity>
+        </View>
+        
+        {/* Search Bar */}
+        <TextInput
+          style={[styles.searchInput, { backgroundColor: colors.card, color: colors.text }]}
+          placeholder="Search products by name, category, or price..."
+          placeholderTextColor={colors.textSecondary}
+          value={productSearch}
+          onChangeText={setProductSearch}
+        />
+
+        <View style={styles.centeredTableWrapper}>
+          <View style={styles.tableScrollContainer}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={true}
+              nestedScrollEnabled={true}
+              style={styles.horizontalScroll}
+            >
+              <View style={styles.tableContainer}>
+                <View style={[styles.tableHeader, { backgroundColor: colors.card }]}>
+                  <Text style={[styles.tableHeaderText, { color: colors.text }]}>
+                    Name
+                  </Text>
+                  <Text style={[styles.tableHeaderText, { color: colors.text }]}>
+                    Category
+                  </Text>
+                  <Text style={[styles.tableHeaderText, { color: colors.text }]}>
+                    Price
+                  </Text>
+                  <Text style={[styles.tableHeaderText, { color: colors.text }]}>
+                    Stock
+                  </Text>
+                  <Text style={[styles.tableHeaderText, { color: colors.text }]}>
+                    Actions
+                  </Text>
+                </View>
+                <ScrollView
+                  style={styles.tableBodyScroll}
+                  nestedScrollEnabled={true}
+                  showsVerticalScrollIndicator={true}
+                >
+                  {filteredProducts.map((product) => (
+                    <View
+                      key={product.id}
+                      style={[styles.tableRow, { borderBottomColor: colors.border }]}
+                    >
+                      <Text style={[styles.tableCell, { color: colors.text }]}>
+                        {product.name}
+                      </Text>
+                      <Text style={[styles.tableCell, { color: colors.text }]}>
+                        {product.category}
+                      </Text>
+                      <Text style={[styles.tableCell, { color: colors.text }]}>
+                        R{product.price?.toFixed(2)}
+                      </Text>
+                      <Text style={[styles.tableCell, { color: colors.text }]}>
+                        {product.stock || 0}
+                      </Text>
+                      <View style={styles.actionButtons}>
+                        <TouchableOpacity
+                          style={[styles.actionButton, { backgroundColor: '#4CAF50' }]}
+                          onPress={() => openEditProduct(product)}
+                        >
+                          <Text style={styles.actionButtonText}>Edit</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.actionButton, { backgroundColor: '#F44336' }]}
+                          onPress={() => handleDeleteProduct(product.id)}
+                        >
+                          <Text style={styles.actionButtonText}>Delete</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ))}
+                </ScrollView>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+        
+        {filteredProducts.length === 0 && (
+          <Text style={[styles.noResults, { color: colors.textSecondary }]}>
+            No products found
+          </Text>
+        )}
       </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        <View style={styles.tableContainer}>
-          <View style={[styles.tableHeader, { backgroundColor: colors.card }]}>
-            <Text style={[styles.tableHeaderText, { color: colors.text }]}>
-              Image
-            </Text>
-            <Text style={[styles.tableHeaderText, { color: colors.text }]}>
-              Name
-            </Text>
-            <Text style={[styles.tableHeaderText, { color: colors.text }]}>
-              Category
-            </Text>
-            <Text style={[styles.tableHeaderText, { color: colors.text }]}>
-              Price
-            </Text>
-            <Text style={[styles.tableHeaderText, { color: colors.text }]}>
-              Stock
-            </Text>
-            <Text style={[styles.tableHeaderText, { color: colors.text }]}>
-              Actions
-            </Text>
-          </View>
-          {products.map((product) => (
-            <View
-              key={product.id}
-              style={[styles.tableRow, { borderBottomColor: colors.border }]}
-            >
-              <Image
-                source={{ uri: product.imageUrl || 'https://via.placeholder.com/50' }}
-                style={styles.productImage}
-              />
-              <Text style={[styles.tableCell, { color: colors.text }]}>
-                {product.name}
-              </Text>
-              <Text style={[styles.tableCell, { color: colors.text }]}>
-                {product.category}
-              </Text>
-              <Text style={[styles.tableCell, { color: colors.text }]}>
-                R{product.price?.toFixed(2)}
-              </Text>
-              <Text style={[styles.tableCell, { color: colors.text }]}>
-                {product.stock || 0}
-              </Text>
-              <View style={styles.actionButtons}>
-                <TouchableOpacity
-                  style={[styles.actionButton, { backgroundColor: '#4CAF50' }]}
-                  onPress={() => openEditProduct(product)}
-                >
-                  <Text style={styles.actionButtonText}>Edit</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.actionButton, { backgroundColor: '#F44336' }]}
-                  onPress={() => handleDeleteProduct(product.id)}
-                >
-                  <Text style={styles.actionButtonText}>Delete</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ))}
-        </View>
-      </ScrollView>
-    </View>
-  );
+    );
+  };
 
-  const renderOrders = () => (
-    <View style={styles.contentContainer}>
-      <Text style={[styles.sectionTitle, { color: colors.text }]}>
-        Order Management
-      </Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        <View style={styles.tableContainer}>
-          <View style={[styles.tableHeader, { backgroundColor: colors.card }]}>
-            <Text style={[styles.tableHeaderText, { color: colors.text }]}>
-              Order ID
-            </Text>
-            <Text style={[styles.tableHeaderText, { color: colors.text }]}>
-              Customer
-            </Text>
-            <Text style={[styles.tableHeaderText, { color: colors.text }]}>
-              Total
-            </Text>
-            <Text style={[styles.tableHeaderText, { color: colors.text }]}>
-              Status
-            </Text>
-            <Text style={[styles.tableHeaderText, { color: colors.text }]}>
-              Date
-            </Text>
-            <Text style={[styles.tableHeaderText, { color: colors.text }]}>
-              Actions
-            </Text>
-          </View>
-          {orders.map((order) => (
-            <View
-              key={order.id}
-              style={[styles.tableRow, { borderBottomColor: colors.border }]}
+  const renderOrders = () => {
+    const filteredOrders = getFilteredOrders();
+    
+    return (
+      <View style={styles.sectionContainer}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>
+          Order Management
+        </Text>
+        
+        {/* Search Bar */}
+        <TextInput
+          style={[styles.searchInput, { backgroundColor: colors.card, color: colors.text }]}
+          placeholder="Search orders by ID, customer, status, or total..."
+          placeholderTextColor={colors.textSecondary}
+          value={orderSearch}
+          onChangeText={setOrderSearch}
+        />
+
+        <View style={styles.centeredTableWrapper}>
+          <View style={styles.tableScrollContainer}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={true}
+              nestedScrollEnabled={true}
+              style={styles.horizontalScroll}
             >
-              <Text style={[styles.tableCell, { color: colors.text }]}>
-                {order.id.substring(0, 8)}...
-              </Text>
-              <Text style={[styles.tableCell, { color: colors.text }]}>
-                {order.userName || 'Unknown'}
-              </Text>
-              <Text style={[styles.tableCell, { color: colors.text }]}>
-                R{order.total?.toFixed(2)}
-              </Text>
-              <View style={[styles.statusBadge, getStatusColor(order.status)]}>
-                <Text style={styles.statusText}>{order.status}</Text>
+              <View style={styles.tableContainer}>
+                <View style={[styles.tableHeader, { backgroundColor: colors.card }]}>
+                  <Text style={[styles.tableHeaderText, { color: colors.text }]}>
+                    Order ID
+                  </Text>
+                  <Text style={[styles.tableHeaderText, { color: colors.text }]}>
+                    Customer
+                  </Text>
+                  <Text style={[styles.tableHeaderText, { color: colors.text }]}>
+                    Total
+                  </Text>
+                  <Text style={[styles.tableHeaderText, { color: colors.text }]}>
+                    Status
+                  </Text>
+                  <Text style={[styles.tableHeaderText, { color: colors.text }]}>
+                    Date
+                  </Text>
+                  <Text style={[styles.tableHeaderText, { color: colors.text }]}>
+                    Actions
+                  </Text>
+                </View>
+                <ScrollView
+                  style={styles.tableBodyScroll}
+                  nestedScrollEnabled={true}
+                  showsVerticalScrollIndicator={true}
+                >
+                  {filteredOrders.map((order) => (
+                    <View
+                      key={order.id}
+                      style={[styles.tableRow, { borderBottomColor: colors.border }]}
+                    >
+                      <Text style={[styles.tableCell, { color: colors.text }]}>
+                        {order.id.substring(0, 8)}...
+                      </Text>
+                      <Text style={[styles.tableCell, { color: colors.text }]}>
+                        {order.userName || 'Unknown'}
+                      </Text>
+                      <Text style={[styles.tableCell, { color: colors.text }]}>
+                        R{order.total?.toFixed(2)}
+                      </Text>
+                      <View style={[styles.statusBadge, getStatusColor(order.status)]}>
+                        <Text style={styles.statusText}>{order.status}</Text>
+                      </View>
+                      <Text style={[styles.tableCell, { color: colors.text }]}>
+                        {order.createdAt?.toDate?.().toLocaleDateString() || 'N/A'}
+                      </Text>
+                      <TouchableOpacity
+                        style={[styles.actionButton, { backgroundColor: colors.primary }]}
+                        onPress={() => {
+                          setSelectedOrder(order);
+                          setShowOrderModal(true);
+                        }}
+                      >
+                        <Text style={styles.actionButtonText}>View</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </ScrollView>
               </View>
-              <Text style={[styles.tableCell, { color: colors.text }]}>
-                {order.createdAt?.toDate?.().toLocaleDateString() || 'N/A'}
-              </Text>
-              <TouchableOpacity
-                style={[styles.actionButton, { backgroundColor: colors.primary }]}
-                onPress={() => {
-                  setSelectedOrder(order);
-                  setShowOrderModal(true);
-                }}
+            </ScrollView>
+          </View>
+        </View>
+        
+        {filteredOrders.length === 0 && (
+          <Text style={[styles.noResults, { color: colors.textSecondary }]}>
+            No orders found
+          </Text>
+        )}
+      </View>
+    );
+  };
+
+  const renderUsers = () => {
+    const filteredUsers = getFilteredUsers();
+    
+    return (
+      <View style={styles.sectionContainer}>
+        <View style={styles.headerRow}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>
+            User Management
+          </Text>
+          <TouchableOpacity
+            style={[styles.addButton, { backgroundColor: colors.primary }]}
+            onPress={() => {
+              resetUserForm();
+              setShowUserModal(true);
+            }}
+          >
+            <Text style={styles.addButtonText}>+ Add User</Text>
+          </TouchableOpacity>
+        </View>
+        
+        {/* Search Bar */}
+        <TextInput
+          style={[styles.searchInput, { backgroundColor: colors.card, color: colors.text }]}
+          placeholder="Search users by name, email, or role..."
+          placeholderTextColor={colors.textSecondary}
+          value={userSearch}
+          onChangeText={setUserSearch}
+        />
+
+        <View style={styles.tableScrollContainer}>
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={true}
+            nestedScrollEnabled={true}
+            style={styles.horizontalScroll}
+          >
+            <View style={styles.tableContainer}>
+              <View style={[styles.tableHeader, { backgroundColor: colors.card }]}>
+                <Text style={[styles.tableHeaderText, { color: colors.text }]}>
+                  Name
+                </Text>
+                <Text style={[styles.tableHeaderText, { color: colors.text }]}>
+                  Email
+                </Text>
+                <Text style={[styles.tableHeaderText, { color: colors.text }]}>
+                  Role
+                </Text>
+                <Text style={[styles.tableHeaderText, { color: colors.text }]}>
+                  Joined
+                </Text>
+                <Text style={[styles.tableHeaderText, { color: colors.text }]}>
+                  Actions
+                </Text>
+              </View>
+              <ScrollView 
+                style={styles.tableBodyScroll}
+                nestedScrollEnabled={true}
+                showsVerticalScrollIndicator={true}
               >
-                <Text style={styles.actionButtonText}>View</Text>
-              </TouchableOpacity>
+                {filteredUsers.map((user) => (
+                  <View
+                    key={user.id}
+                    style={[styles.tableRow, { borderBottomColor: colors.border }]}
+                  >
+                    <Text style={[styles.tableCell, { color: colors.text }]}>
+                      {user.name || 'N/A'}
+                    </Text>
+                    <Text style={[styles.tableCell, { color: colors.text }]}>
+                      {user.email}
+                    </Text>
+                    <Text style={[styles.tableCell, { color: colors.text }]}>
+                      {user.role || 'user'}
+                    </Text>
+                    <Text style={[styles.tableCell, { color: colors.text }]}>
+                      {user.createdAt?.toDate?.().toLocaleDateString() || 'N/A'}
+                    </Text>
+                    <View style={styles.actionButtons}>
+                      <TouchableOpacity
+                        style={[styles.actionButton, { backgroundColor: '#4CAF50' }]}
+                        onPress={() => openEditUser(user)}
+                      >
+                        <Text style={styles.actionButtonText}>Edit</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.actionButton, { backgroundColor: '#F44336' }]}
+                        onPress={() => handleDeleteUser(user.id)}
+                      >
+                        <Text style={styles.actionButtonText}>Delete</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))}
+              </ScrollView>
             </View>
-          ))}
+          </ScrollView>
         </View>
-      </ScrollView>
-    </View>
-  );
-
-  const renderUsers = () => (
-    <View style={styles.contentContainer}>
-      <Text style={[styles.sectionTitle, { color: colors.text }]}>
-        User Management
-      </Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        <View style={styles.tableContainer}>
-          <View style={[styles.tableHeader, { backgroundColor: colors.card }]}>
-            <Text style={[styles.tableHeaderText, { color: colors.text }]}>
-              Name
-            </Text>
-            <Text style={[styles.tableHeaderText, { color: colors.text }]}>
-              Email
-            </Text>
-            <Text style={[styles.tableHeaderText, { color: colors.text }]}>
-              Role
-            </Text>
-            <Text style={[styles.tableHeaderText, { color: colors.text }]}>
-              Joined
-            </Text>
-          </View>
-          {users.map((user) => (
-            <View
-              key={user.id}
-              style={[styles.tableRow, { borderBottomColor: colors.border }]}
-            >
-              <Text style={[styles.tableCell, { color: colors.text }]}>
-                {user.name || 'N/A'}
-              </Text>
-              <Text style={[styles.tableCell, { color: colors.text }]}>
-                {user.email}
-              </Text>
-              <Text style={[styles.tableCell, { color: colors.text }]}>
-                {user.role || 'user'}
-              </Text>
-              <Text style={[styles.tableCell, { color: colors.text }]}>
-                {user.createdAt?.toDate?.().toLocaleDateString() || 'N/A'}
-              </Text>
-            </View>
-          ))}
-        </View>
-      </ScrollView>
-    </View>
-  );
+        
+        {filteredUsers.length === 0 && (
+          <Text style={[styles.noResults, { color: colors.textSecondary }]}>
+            No users found
+          </Text>
+        )}
+      </View>
+    );
+  };
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -624,7 +862,13 @@ const WebAdminScreen = ({ navigation }) => {
       </View>
 
       {/* Content */}
-      <ScrollView style={styles.content}>
+      <View style={styles.scrollWrapper}>
+        <ScrollView 
+          style={styles.content}
+          contentContainerStyle={styles.contentContainer}
+          showsVerticalScrollIndicator={true}
+          bounces={false}
+        >
         {loading && activeTab === 'dashboard' ? (
           <ActivityIndicator size="large" color={colors.primary} />
         ) : (
@@ -636,6 +880,7 @@ const WebAdminScreen = ({ navigation }) => {
           </>
         )}
       </ScrollView>
+      </View>
 
       {/* Product Modal */}
       <Modal
@@ -833,6 +1078,97 @@ const WebAdminScreen = ({ navigation }) => {
           </View>
         </View>
       </Modal>
+
+      {/* User Modal */}
+      <Modal
+        visible={showUserModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowUserModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>
+              {selectedUser ? 'Edit User' : 'Add User'}
+            </Text>
+            <ScrollView>
+              <TextInput
+                style={[styles.input, { backgroundColor: colors.card, color: colors.text }]}
+                placeholder="Name *"
+                placeholderTextColor={colors.textSecondary}
+                value={userForm.name}
+                onChangeText={(text) =>
+                  setUserForm({ ...userForm, name: text })
+                }
+              />
+              <TextInput
+                style={[styles.input, { backgroundColor: colors.card, color: colors.text }]}
+                placeholder="Email *"
+                placeholderTextColor={colors.textSecondary}
+                value={userForm.email}
+                onChangeText={(text) =>
+                  setUserForm({ ...userForm, email: text })
+                }
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+              <View style={styles.roleContainer}>
+                <Text style={[styles.roleLabel, { color: colors.text }]}>Role:</Text>
+                <View style={styles.roleButtons}>
+                  <TouchableOpacity
+                    style={[
+                      styles.roleButton,
+                      { backgroundColor: userForm.role === 'user' ? colors.primary : colors.card }
+                    ]}
+                    onPress={() => setUserForm({ ...userForm, role: 'user' })}
+                  >
+                    <Text style={[
+                      styles.roleButtonText,
+                      { color: userForm.role === 'user' ? '#fff' : colors.text }
+                    ]}>
+                      User
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.roleButton,
+                      { backgroundColor: userForm.role === 'admin' ? colors.primary : colors.card }
+                    ]}
+                    onPress={() => setUserForm({ ...userForm, role: 'admin' })}
+                  >
+                    <Text style={[
+                      styles.roleButtonText,
+                      { color: userForm.role === 'admin' ? '#fff' : colors.text }
+                    ]}>
+                      Admin
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalButton, { backgroundColor: colors.border }]}
+                  onPress={() => {
+                    setShowUserModal(false);
+                    resetUserForm();
+                  }}
+                >
+                  <Text style={styles.modalButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalButton, { backgroundColor: colors.primary }]}
+                  onPress={handleSaveUser}
+                  disabled={loading}
+                >
+                  <Text style={styles.modalButtonText}>
+                    {loading ? 'Saving...' : 'Save'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -874,12 +1210,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  scrollWrapper: {
+    flex: 1,
+    overflow: 'hidden', // Prevents double scrollbars
+  },
   content: {
     flex: 1,
+  },
+  contentContainer: {
     padding: 20,
+    flexGrow: 1,
   },
   dashboardContainer: {
-    flex: 1,
+    padding: 20,
+  },
+  sectionContainer: {
+    padding: 20,
   },
   sectionTitle: {
     fontSize: 22,
@@ -912,9 +1258,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
   },
-  contentContainer: {
-    flex: 1,
-  },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -929,6 +1272,29 @@ const styles = StyleSheet.create({
   addButtonText: {
     color: '#fff',
     fontWeight: 'bold',
+  },
+  searchInput: {
+    padding: 15,
+    borderRadius: 5,
+    marginBottom: 20,
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  tableScrollContainer: {
+    maxHeight: 500, // Limit height for vertical scrolling
+    borderRadius: 5,
+    overflow: 'hidden',
+  },
+  horizontalScroll: {
+    flexGrow: 0,
+  },
+  tableBodyScroll: {
+    maxHeight: 400,
+  },
+  centeredTableWrapper: {
+    alignItems: 'center',
+    overflow: 'auto', // Added for web
   },
   tableContainer: {
     minWidth: Platform.OS === 'web' ? 1000 : 800,
@@ -1068,6 +1434,34 @@ const styles = StyleSheet.create({
   statusButtonText: {
     color: '#fff',
     fontWeight: 'bold',
+  },
+  roleContainer: {
+    marginBottom: 15,
+  },
+  roleLabel: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 10,
+  },
+  roleButtons: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  roleButton: {
+    flex: 1,
+    padding: 15,
+    borderRadius: 5,
+    alignItems: 'center',
+  },
+  roleButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  noResults: {
+    textAlign: 'center',
+    fontSize: 16,
+    marginTop: 20,
+    fontStyle: 'italic',
   },
 });
 
